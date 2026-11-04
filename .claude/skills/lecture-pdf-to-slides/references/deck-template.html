@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Replace with the lecture's own title, e.g. "Section 3.6: Row Space and Column Space" -->
+<title>LECTURE TITLE</title>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Source+Sans+3:wght@400;600;700&family=Caveat:wght@500;700&display=swap">
+
+<style>
+/* =====================================================================
+   DESIGN TOKENS
+   The box colours deliberately mirror the colour code most LaTeX lecture
+   templates (and this skill's reference notes) already use, so students
+   who know the PDF recognise each block type at a glance. Adjust the
+   values to match the source PDF if its palette differs.
+   ===================================================================== */
+:root {
+  --page: #ffffff;
+  --ink: #1b1f2a;           /* body text */
+  --ink-soft: #4a5163;      /* secondary text, captions */
+  --rule: #d9dce4;
+  --title: #a3134a;         /* crimson section titles (matches PDF headings) */
+  --example: #1f3fbf;       /* blue EXAMPLE / Solution labels */
+
+  --def-bg: #ececfb;  --def-edge: #6b6bd6;   /* Definition */
+  --thm-bg: #e8f6e8;  --thm-edge: #3c9a4a;   /* Theorem / Property / Corollary */
+  --note-bg: #fff9df; --note-edge: #c9a227;  /* Note / Remark */
+  --key-bg: #fff1e4;  --key-edge: #d9822b;   /* Key takeaway / "It follows that…" */
+  --proof-edge: #9aa0ad;                     /* Proof */
+
+  /* instructor ink — match the colours actually used in the annotations */
+  --ann-red: #d6332a;
+  --ann-blue: #2453d6;
+  --ann-magenta: #c2189b;
+  --ann-green: #17804a;
+  --hl-yellow: rgba(255, 234, 0, .45);
+  --hl-green: rgba(64, 210, 140, .40);
+  --hl-orange: rgba(255, 170, 60, .45);
+
+  --font-head: "Source Sans 3", system-ui, sans-serif;
+  --font-body: "Source Serif 4", Georgia, serif;
+  --font-ink: "Caveat", "Segoe Print", cursive;
+}
+
+html, body { background: var(--page); }
+.reveal { font-family: var(--font-body); font-size: 30px; color: var(--ink); }
+.reveal .slides section { text-align: left; height: 100%; box-sizing: border-box; padding: 34px 56px 40px; }
+.reveal .slides section > .stack { display: flex; flex-direction: column; gap: 18px; height: 100%; }
+/* .body fills the space under the title and centres sparse content vertically */
+.reveal .body { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 18px; }
+.reveal .eq { margin: 0; }
+.reveal p { margin: 0; line-height: 1.42; }
+.reveal ul, .reveal ol { margin: 0 0 0 1.1em; line-height: 1.42; }
+.reveal li + li { margin-top: 6px; }
+.reveal strong { font-weight: 600; }
+
+/* ---------- headings ---------- */
+.reveal h1, .reveal h2, .reveal h3 { font-family: var(--font-head); text-transform: none; letter-spacing: 0; margin: 0; }
+.reveal h2.slide-title { font-size: 40px; font-weight: 700; color: var(--title); line-height: 1.15; }
+.reveal .kicker { font-family: var(--font-head); font-size: 20px; font-weight: 600; color: var(--ink-soft); }
+.reveal .src { position: absolute; right: 120px; bottom: 12px; font: 15px var(--font-head); color: var(--ink-soft); }
+
+/* ---------- title + section divider ---------- */
+.reveal section.title-slide { display: flex !important; flex-direction: column; justify-content: center; padding-left: 96px; }
+.reveal section.title-slide h1 { font-size: 64px; color: var(--title); font-weight: 700; line-height: 1.1; }
+.reveal section.title-slide .sub { font: 28px var(--font-head); color: var(--ink-soft); margin-top: 18px; }
+.reveal section.divider { display: flex !important; flex-direction: column; justify-content: center; padding-left: 96px; border-left: 14px solid var(--title); }
+.reveal section.divider h2 { font-size: 54px; color: var(--title); }
+.reveal section.divider p { font: 26px var(--font-head); color: var(--ink-soft); margin-top: 14px; max-width: 900px; }
+
+/* ---------- typed blocks ---------- */
+.box { border-left: 6px solid; border-radius: 4px; padding: 16px 22px; }
+.box > .label { font-family: var(--font-head); font-weight: 700; font-size: 26px; margin-bottom: 6px; display: block; }
+.box.definition { background: var(--def-bg); border-color: var(--def-edge); }
+.box.definition > .label { color: #3d3da8; }
+.box.theorem, .box.property { background: var(--thm-bg); border-color: var(--thm-edge); }
+.box.theorem > .label, .box.property > .label { color: #23692f; }
+.box.note, .box.remark { background: var(--note-bg); border-color: var(--note-edge); }
+.box.note > .label, .box.remark > .label { color: #7d6210; }
+.box.key { background: var(--key-bg); border-color: var(--key-edge); }
+.box.key > .label { color: #8f4d0f; }
+.proof { border-left: 3px solid var(--proof-edge); padding: 4px 0 4px 20px; }
+.proof > .label { font-style: italic; font-weight: 600; margin-right: .3em; }
+.qed { float: right; }
+
+.example-label, .solution-label { font-family: var(--font-head); font-weight: 700; color: var(--example); font-size: 28px; }
+.parts { list-style: none; margin-left: 0; padding: 0; }
+.parts > li { display: grid; grid-template-columns: 2.1em 1fr; }
+.parts > li > .tag { font-family: var(--font-head); font-weight: 600; }
+
+/* two columns: text | figure */
+.split { display: grid; grid-template-columns: 1.15fr 1fr; gap: 34px; align-items: center; flex: 1; min-height: 0; }
+.split.even { grid-template-columns: 1fr 1fr; }
+figure { margin: 0; }
+figure svg, figure img { width: 100%; height: auto; display: block; max-height: 470px; }
+figcaption { font: 18px var(--font-head); color: var(--ink-soft); margin-top: 8px; }
+
+/* PDF crops of the instructor's own sketches */
+figure.from-pdf img { border: 1px solid var(--rule); border-radius: 4px; background: #fff; }
+figure.from-pdf figcaption::before { content: "From the annotated notes, p. " attr(data-page) " — "; font-weight: 600; }
+
+/* tables (summary slides) */
+table.grid { border-collapse: collapse; width: 100%; font-size: 24px; }
+table.grid th, table.grid td { border: 1px solid var(--rule); padding: 9px 14px; text-align: left; }
+table.grid th { font-family: var(--font-head); background: #f3f4f8; }
+
+/* math sizing: keep display math inside the slide */
+.reveal .katex-display { margin: .35em 0; overflow-x: auto; overflow-y: hidden; }
+.reveal .katex { font-size: 1.05em; }
+.math-sm .katex { font-size: .92em; }
+
+/* =====================================================================
+   ANNOTATION LAYER
+   Everything the instructor added by hand carries class "ann" (or one of
+   the hl-/ul-/circ- emphasis classes). Press A to hide/show the layer so
+   the deck can be shown "clean" or "annotated".
+   ===================================================================== */
+.hl-yellow { background: linear-gradient(100deg, transparent 0 1%, var(--hl-yellow) 3% 97%, transparent 99%); border-radius: 3px; padding: 0 .12em; }
+.hl-green  { background: linear-gradient(100deg, transparent 0 1%, var(--hl-green) 3% 97%, transparent 99%);  border-radius: 3px; padding: 0 .12em; }
+.hl-orange { background: linear-gradient(100deg, transparent 0 1%, var(--hl-orange) 3% 97%, transparent 99%); border-radius: 3px; padding: 0 .12em; }
+.ul-red     { text-decoration: underline 2px var(--ann-red);     text-underline-offset: 5px; }
+.ul-blue    { text-decoration: underline 2px var(--ann-blue);    text-underline-offset: 5px; }
+.ul-magenta { text-decoration: underline 2px var(--ann-magenta); text-underline-offset: 5px; }
+.circ-red, .circ-blue, .circ-magenta { border: 2px solid; border-radius: 999px; padding: 0 .3em; }
+.circ-red { border-color: var(--ann-red); } .circ-blue { border-color: var(--ann-blue); } .circ-magenta { border-color: var(--ann-magenta); }
+.box-red { outline: 2px solid var(--ann-red); outline-offset: 3px; border-radius: 3px; }
+
+/* instructor margin note / handwritten insight, typeset */
+.ann-note { border: 2px dashed currentColor; border-radius: 8px; padding: 10px 16px; font-size: 26px; color: var(--ann-blue); background: #fff; }
+.ann-note.red { color: var(--ann-red); } .ann-note.magenta { color: var(--ann-magenta); } .ann-note.green { color: var(--ann-green); }
+.ann-note > .ink-label { font-family: var(--font-ink); font-weight: 700; font-size: 28px; display: block; margin-bottom: 2px; }
+.ann-note .katex { color: inherit; }
+/* a correction where the handwritten work contained a slip */
+.ann-fix { font: 18px var(--font-head); color: var(--ink-soft); border-top: 1px dotted var(--rule); padding-top: 6px; }
+.ann-fix::before { content: "Corrected from the handwritten notes: "; font-weight: 600; }
+
+body.no-ann .ann { display: none !important; }
+body.no-ann .hl-yellow, body.no-ann .hl-green, body.no-ann .hl-orange { background: none; padding: 0; }
+body.no-ann .ul-red, body.no-ann .ul-blue, body.no-ann .ul-magenta { text-decoration: none; }
+body.no-ann .circ-red, body.no-ann .circ-blue, body.no-ann .circ-magenta, body.no-ann .box-red { border-color: transparent; outline-color: transparent; }
+
+#ann-toggle { position: fixed; left: 16px; bottom: 12px; z-index: 30; font: 600 15px var(--font-head); color: var(--ink-soft); background: #fff; border: 1px solid var(--rule); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+
+/* fragments: fade only — no flying or zooming */
+.reveal .slides section .fragment { transition: opacity .25s ease; }
+.reveal .controls { color: var(--title); }
+.reveal .progress { color: var(--title); height: 4px; }
+.reveal .slide-number { font-family: var(--font-head); background: transparent; color: var(--ink-soft); font-size: 16px; }
+
+@media print { #ann-toggle { display: none; } }
+</style>
+</head>
+<body>
+<button id="ann-toggle" type="button" aria-pressed="true" title="Show or hide the instructor annotations (A)">Annotations: on</button>
+
+<div class="reveal"><div class="slides">
+
+<!-- ===================================================================
+     SAMPLE SLIDES. They show each component once. Replace all of them
+     with the lecture's real content; keep the class names and the
+     data-inv attributes (one inventory id per covered item).
+     =================================================================== -->
+
+<section class="title-slide" data-inv="p01-title">
+  <h1>Section 3.6<br>Row Space and Column Space</h1>
+  <p class="sub">Rank, nullity, and when <span>\(A\mathbf{x}=\mathbf{b}\)</span> has a solution</p>
+</section>
+
+<section>
+  <div class="stack">
+    <h2 class="slide-title">Row space and column space</h2>
+    <div class="body">
+    <div class="box definition" data-inv="p01-def-row-col-space">
+      <span class="label">Definition</span>
+      <p>Let \(A\) be an \(m\times n\) matrix.</p>
+      <ul>
+        <li>The subspace of \(\mathbb{R}^n\) spanned by the row vectors of \(A\) is the <strong class="hl-yellow">Row Space</strong> of \(A\).</li>
+        <li>The subspace of \(\mathbb{R}^m\) spanned by the column vectors of \(A\) is the <strong>Column Space</strong> of \(A\).</li>
+      </ul>
+    </div>
+    </div>
+  </div>
+  <span class="src">notes p. 1</span>
+</section>
+
+<section>
+  <div class="stack">
+    <h2 class="slide-title">Example 2 — a column space that is a line</h2>
+    <div class="split">
+      <div class="stack" style="height:auto">
+        <div class="eq">\[A=\begin{bmatrix}1&2\\2&4\end{bmatrix},\qquad \mathbf{a}_2 = 2\mathbf{a}_1\]</div>
+        <p class="fragment">So the column space is \(\operatorname{span}\!\left(\begin{bmatrix}1\\2\end{bmatrix}\right)\), the line \(L.\)</p>
+        <div class="ann-note ann fragment" data-inv="p05-ann-line-L">
+          <span class="ink-label">Instructor note</span>
+          \(\operatorname{span}\!\left(\begin{bmatrix}1\\2\end{bmatrix},\begin{bmatrix}2\\4\end{bmatrix}\right)=\operatorname{span}\!\left(\begin{bmatrix}1\\2\end{bmatrix}\right)=\) line \(L\)
+        </div>
+      </div>
+      <figure data-inv="p05-ann-sketch-line">
+        <!-- custom SVG: accurate, labelled, uses the deck's colours -->
+        <svg viewBox="0 0 420 360" role="img" aria-label="The line L through the origin and the point (1, 2)">
+          <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1b1f2a"/></marker>
+                <marker id="arrG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#17804a"/></marker></defs>
+          <line x1="20" y1="300" x2="400" y2="300" stroke="#1b1f2a" stroke-width="2" marker-end="url(#arr)"/>
+          <line x1="120" y1="345" x2="120" y2="15" stroke="#1b1f2a" stroke-width="2" marker-end="url(#arr)"/>
+          <line x1="80" y1="380" x2="270" y2="0" stroke="#c2189b" stroke-width="4"/>
+          <line x1="120" y1="300" x2="200" y2="140" stroke="#17804a" stroke-width="4" marker-end="url(#arrG)"/>
+          <line x1="200" y1="140" x2="200" y2="300" stroke="#17804a" stroke-dasharray="6 6"/>
+          <text x="212" y="134" font-family="Source Sans 3" font-size="22" fill="#17804a">(1, 2)</text>
+          <text x="276" y="40" font-family="KaTeX_Math, serif" font-style="italic" font-size="32" fill="#c2189b">L</text>
+          <text x="194" y="324" font-family="Source Sans 3" font-size="20" fill="#4a5163">1</text>
+          <text x="96" y="146" font-family="Source Sans 3" font-size="20" fill="#4a5163">2</text>
+        </svg>
+        <figcaption>Every \(\mathbf{b}\) on \(L\) gives a consistent system; every other \(\mathbf{b}\) does not.</figcaption>
+      </figure>
+    </div>
+  </div>
+  <span class="src">notes p. 5</span>
+</section>
+
+<section>
+  <div class="stack">
+    <h2 class="slide-title">Checking the dependency relations on \(A\)</h2>
+    <div class="body">
+    <div class="eq">\[\mathbf{a}_4=-\tfrac98\,\mathbf{a}_1-\tfrac12\,\mathbf{a}_2:\qquad
+       \begin{bmatrix}6\\-3\\-2\\2\end{bmatrix}=-\tfrac98\begin{bmatrix}-8\\4\\0\\0\end{bmatrix}-\tfrac12\begin{bmatrix}6\\-3\\4\\-4\end{bmatrix}\]</div>
+    <p class="ann-fix ann" data-inv="p10-ann-check-a4">the handwritten check writes the left side as \((-9,4,-3,4)^T\), which is \(\mathbf{a}_5\); the relation holds for \(\mathbf{a}_4=(6,-3,-2,2)^T.\)</p>
+    </div>
+  </div>
+  <span class="src">notes p. 10</span>
+</section>
+
+<section>
+  <div class="stack">
+    <h2 class="slide-title">The four possibilities depend on the rank \(r\)</h2>
+    <table class="grid" data-inv="p14-table-four-cases">
+      <thead><tr><th>Rank</th><th>Shape of \(A\)</th><th>System</th><th>\(A\mathbf{x}=\mathbf{b}\) has</th></tr></thead>
+      <tbody>
+        <tr><td>\(r=m,\ r=n\)</td><td>Square and invertible</td><td></td><td>1 solution \((\mathbf{x}=A^{-1}\mathbf{b})\)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <span class="src">notes p. 14</span>
+</section>
+
+</div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script>
+  // 1) Typeset all math before Reveal measures the slides.
+  renderMathInElement(document.querySelector(".reveal .slides"), {
+    delimiters: [
+      { left: "\\[", right: "\\]", display: true },
+      { left: "$$", right: "$$", display: true },
+      { left: "\\(", right: "\\)", display: false }
+    ],
+    throwOnError: false,          // errors show as red .katex-error spans; check_deck.js counts them
+    trust: false,
+    macros: { "\\R": "\\mathbb{R}", "\\N": "\\operatorname{N}", "\\rank": "\\operatorname{rank}", "\\span": "\\operatorname{span}" }
+  });
+
+  // 2) Start the deck: fixed 16:9 canvas, fades, slide numbers, URL hash.
+  Reveal.initialize({
+    width: 1280, height: 720, margin: 0.03,
+    center: false, hash: true, slideNumber: "c/t",
+    transition: "fade", transitionSpeed: "fast", backgroundTransition: "none",
+    pdfSeparateFragments: false,
+    plugins: [RevealNotes]
+  });
+
+  // 3) Annotation layer toggle (button or the A key).
+  (function () {
+    const btn = document.getElementById("ann-toggle");
+    function set(on) {
+      document.body.classList.toggle("no-ann", !on);
+      btn.textContent = "Annotations: " + (on ? "on" : "off");
+      btn.setAttribute("aria-pressed", String(on));
+      try { localStorage.setItem("deck-ann", on ? "1" : "0"); } catch (e) {}
+    }
+    let start = true;
+    try { start = localStorage.getItem("deck-ann") !== "0"; } catch (e) {}
+    set(start);
+    btn.addEventListener("click", () => set(document.body.classList.contains("no-ann")));
+    Reveal.addKeyBinding({ keyCode: 65, key: "A", description: "Toggle annotations" },
+      () => set(document.body.classList.contains("no-ann")));
+  })();
+</script>
+</body>
+</html>
