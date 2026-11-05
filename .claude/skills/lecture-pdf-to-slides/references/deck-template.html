@@ -217,7 +217,7 @@ table.grid th { font-family: var(--font-head); background: #f3f4f8; }
 /* instructor margin note, typeset */
 .ann-note { border: 2px dashed currentColor; border-radius: 8px; padding: 10px 16px; font-size: 26px; color: var(--ann-blue); background: #fff; }
 .ann-note.red { color: var(--ann-red); } .ann-note.magenta { color: var(--ann-magenta); } .ann-note.green { color: var(--ann-green); } .ann-note.navy { color: var(--ann-navy); }
-.ann-note p { line-height: 1.35; }
+.ann-note p, .ann-note, .hw-block { line-height: 1.5; }   /* room for underlines above tall math */
 
 /* a correction. Of handwriting: class "ann-fix ann" (hides with the ink).
    Of the typed notes: class "ann-fix typed" (always visible). */
@@ -272,8 +272,8 @@ body.no-ann .katex [class*="box-"] .fbox, body.no-ann .katex [class*="circ-"] .f
       <span class="label">Definition</span>
       <p>Let \(A\) be an <span class="ul-red" data-inv="p01-ann-ul-mxn">\(m\times n\)</span> matrix.</p>
       <ul>
-        <li>The subspace of \(\mathbb{R}^n\) spanned by the row vectors of \(A\) is the <strong class="hl-yellow" data-inv="p01-ann-hl-rowspace">Row Space</strong> of \(A\).</li>
-        <li>The subspace of \(\mathbb{R}^m\) spanned by the column vectors of \(A\) is the <strong>Column Space</strong> of \(A\).</li>
+        <li>The subspace of \(\mathbb{R}^n\) spanned by the row vectors of \(A\) is the <strong class="hl-yellow" data-inv="p01-ann-hl-rowspace">Row Space</strong> <span class="nowrap">of \(A\).</span></li>
+        <li>The subspace of \(\mathbb{R}^m\) spanned by the column vectors of \(A\) is the <strong>Column Space</strong> <span class="nowrap">of \(A\).</span></li>
       </ul>
     </div>
     </div>

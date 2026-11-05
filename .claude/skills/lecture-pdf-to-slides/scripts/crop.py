@@ -62,6 +62,18 @@ def main():
             img.save(buf, format="PNG", optimize=True)
             print("data:image/png;base64," + base64.b64encode(buf.getvalue()).decode())
 
+    # warn when the box cuts through content: dark pixels on an edge of the crop
+    # mean a bracket, a label or a stroke is cut off (or a fragment of the
+    # neighbouring line got in). Move that edge until it runs through white.
+    import sys
+    g = c.convert("L")
+    cw, ch = g.size
+    edges = {"top": g.crop((0, 0, cw, 2)), "bottom": g.crop((0, ch - 2, cw, ch)),
+             "left": g.crop((0, 0, 2, ch)), "right": g.crop((cw - 2, 0, cw, ch))}
+    cut = [k for k, e in edges.items() if sum(e.point(lambda v: 255 if v < 200 else 0).histogram()[255:]) > 2]
+    if cut:
+        print(f"warning: content touches the {', '.join(cut)} edge of the crop; it is cut off or includes a neighbouring line. Adjust the box.", file=sys.stderr)
+
     finish(c, a.out)
     if a.pair:
         src = Path(a.image).resolve()
@@ -78,7 +90,6 @@ def main():
         if ink.exists():
             m = ImageChops.difference(Image.open(ink).convert("RGB").crop(box), Image.new("RGB", (box[2] - box[0], box[3] - box[1]), (255, 255, 255)))
             n = sum(m.convert("L").histogram()[25:])
-        import sys
         print(f"wrote {a.out} and {out2}; ink: {'none' if n == 0 else str(n) + ' px'}", file=sys.stderr)
 
 

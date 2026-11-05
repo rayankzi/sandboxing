@@ -38,16 +38,19 @@ and note any slip in the notes themselves.
 
 ## 2. Render the deck
 
-Run `node SKILL_DIR/scripts/check_deck.js DECK_PATH REVIEW_DIR/shots` for
-screenshots with annotations on (`slide-NNN.png`) and off (`noann-NNN.png`),
-plus its automatic findings. Then look at every slide yourself, at full size
+Run `node SKILL_DIR/scripts/check_deck.js DECK_PATH REVIEW_DIR/shots --pages REVIEW_DIR/prep/pages`
+for screenshots with annotations on (`slide-NNN.png`) and off
+(`noann-NNN.png`), its automatic findings, a sheet per PDF page with the
+slides that cite it (`compare-pNN.png`), and every formula slide by slide
+(`tex-by-slide.txt`). Then look at every slide yourself, at full size
 for anything math-heavy or questionable. Press-test the annotation toggle by
 comparing the on and off screenshots.
 
 ## 3. Check, item by item
 
-For every item on your list, find the slide where it is visibly rendered.
-Then check:
+For every item on your list, find the slide where it is visibly rendered;
+the `compare-pNN.png` sheets put each page next to its slides, so go mark by
+mark across each sheet. Then check:
 - **Coverage:** is it there, complete, and on the slide it belongs to? A
   margin note or arrow label must sit with the line it comments on.
 - **Accuracy:** wording, every matrix entry, sign, subscript and fraction
@@ -60,13 +63,15 @@ Then check:
   no captions about the ink.
 - **Typesetting:** all math in KaTeX (no `x1`, `R^n`, `→`, `θ`, `°` as plain
   text); matrices full size, never `smallmatrix`; notation as in the notes
-  (bold vectors); no awkward line breaks, orphaned brackets, cramped
-  fractions, or uneven gaps.
+  (bold vectors); every function has its argument (`cos θ`, not `cos`); no
+  awkward line breaks, formulas left alone on a line, orphaned brackets,
+  cramped fractions, matrices stretched to fit labels, or uneven gaps.
 - **Figures:** every instructor sketch carried over (as a readable crop and/or
   a faithful redraw); custom figures accurate (points at the right
   coordinates, labels right and consistent with the slide's numbers); no
-  label touching another label or crossed by a line; captions true of the
-  figure they describe.
+  label touching another label or crossed by a line; crops that cut off a
+  bracket or include a fragment of the next line; captions true of the
+  figure they describe, and no captions that merely name pen colours.
 - **Layout and design:** nothing cut off or overflowing; all text a viewer
   reads at 22px or more on the 1280×720 canvas; slide chrome (arrows, slide
   number, toggle, source tag) not overlapping anything; consistent colours

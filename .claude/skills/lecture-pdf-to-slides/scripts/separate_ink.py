@@ -12,7 +12,9 @@ This script removes both and writes, inside OUT_DIR:
   printed/page-NN.png         printed-only render (same DPI as pages/)
   ink/page-NN.png             the ink alone on white
   ink/page-NN-map.png         the page with printed content faded and every ink
-                              region boxed and numbered (p05-r3 ...)
+                              region boxed and numbered (p05-r3 ...): pen
+                              regions in black boxes, highlighter regions in
+                              orange boxes (a highlight is always its own region)
   ink/regions.json            per page: separation method and every ink region
                               (id, fractional bbox, pixel count, colour name, hex)
 
@@ -59,6 +61,39 @@ NAMED = {  # ink colours seen in annotated notes; nearest name is reported
 }
 
 
+PEN_FAMILIES = {"red": (214, 51, 42), "magenta": (200, 30, 160), "blue": (31, 111, 224), "navy": (35, 41, 122),
+                "green": (23, 128, 74), "orange": (230, 120, 30), "purple": (120, 60, 180), "black": (30, 30, 30)}
+
+
+def pen_families(full, pen):
+    """Split pen pixels by pen colour. Compares the direction of (white - pixel),
+    which is the same for a stroke's core and its anti-aliased edge."""
+    names = list(PEN_FAMILIES)
+    ref = np.array([[255 - v for v in PEN_FAMILIES[n]] for n in names], float)
+    ref /= np.linalg.norm(ref, axis=1, keepdims=True)
+    ys, xs = np.nonzero(pen)
+    d = 255.0 - full[ys, xs].astype(float)
+    d /= np.linalg.norm(d, axis=1, keepdims=True) + 1e-6
+    sim = d @ ref.T
+    lab = sim.argmax(axis=1)
+    # keep only the pens really used on this page; fold edge pixels and blends
+    # (a magenta stroke over black print, say) into the nearest of those pens
+    counts = np.bincount(lab, minlength=len(names))
+    major = [k for k in range(len(names)) if counts[k] >= max(400, 0.04 * len(lab))]
+    if not major:
+        major = [int(counts.argmax())]
+    lab = np.array(major)[sim[:, major].argmax(axis=1)]
+    out = {}
+    for k, n in enumerate(names):
+        sel = lab == k
+        if sel.sum() < 12:
+            continue
+        m = np.zeros_like(pen)
+        m[ys[sel], xs[sel]] = True
+        out[n] = m
+    return out
+
+
 def colour_name(rgb):
     return min(NAMED, key=lambda k: sum((a - b) ** 2 for a, b in zip(NAMED[k], rgb)))
 
@@ -89,6 +124,20 @@ def render(pdf, page, dpi, base):
     return Path(f"{base}.png")
 
 
+def dilate(mask, r):
+    """Binary dilation by a (2r+1)^2 square, without wrap-around."""
+    out = mask.copy()
+    h, w = mask.shape
+    for dy in range(-r, r + 1):
+        for dx in range(-r, r + 1):
+            if dy == 0 and dx == 0:
+                continue
+            ys, yd = (slice(0, h - dy), slice(dy, h)) if dy >= 0 else (slice(-dy, h), slice(0, h + dy))
+            xs, xd = (slice(0, w - dx), slice(dx, w)) if dx >= 0 else (slice(-dx, w), slice(0, w + dx))
+            out[yd, xd] |= mask[ys, xs]
+    return out
+
+
 def regions_from_mask(mask, cell, grow):
     h, w = mask.shape
     gh, gw = (h + cell - 1) // cell, (w + cell - 1) // cell
@@ -96,10 +145,7 @@ def regions_from_mask(mask, cell, grow):
     pad[:h, :w] = mask
     grid = pad.reshape(gh, cell, gw, cell).sum(axis=(1, 3))
     occ = grid > 0
-    dil = occ.copy()
-    for dy in range(-grow, grow + 1):
-        for dx in range(-grow, grow + 1):
-            dil |= np.roll(np.roll(occ, dy, 0), dx, 1)
+    dil = dilate(occ, grow)
     seen = np.zeros_like(dil)
     out = []
     for y0, x0 in zip(*np.nonzero(dil)):
@@ -183,17 +229,50 @@ def main():
         d = ImageDraw.Draw(mp)
         H, W = mask.shape
         cell = max(4, a.dpi // 33)
+        # Highlighter and pen get separate regions, so a highlight under (or next
+        # to) handwriting is its own region and cannot hide inside a pen region.
+        # Highlighter ink is light and pastel; the light anti-aliased rim of a
+        # pen stroke is excluded by growing the pen mask first.
+        mn, mx = full.min(axis=2), full.max(axis=2)
+        light = mask & (mn >= 100) & (mx >= 200)
+        pen = mask & ~light
+        hl = light & ~dilate(pen, max(3, a.dpi // 50))
+        pen = mask & ~hl
+        found = []
+        for fam, m in pen_families(full, pen).items():   # one pen colour at a time
+            found += [(b, m, False) for b in regions_from_mask(m, cell, grow=3)]
+        found += [(b, hl, True) for b in regions_from_mask(hl, cell, grow=2)]
+        # fold a small region that lies inside a bigger one of the same kind (a
+        # blended edge, magenta over yellow read as purple) into the bigger one
+        def inside(a, b):
+            iy = max(0, min(a[2], b[2]) - max(a[0], b[0])); ix = max(0, min(a[3], b[3]) - max(a[1], b[1]))
+            return iy * ix >= 0.8 * (a[2] - a[0]) * (a[3] - a[1])
+        sized = [(b, m, h, int(m[b[0]:b[2], b[1]:b[3]].sum())) for b, m, h in found]
+        keep = []
+        for b, m, h, n in sorted(sized, key=lambda t: -t[3]):
+            host = next((j for j, (b2, m2, h2, n2) in enumerate(keep) if h2 == h and n < 2000 and inside(b, b2)), None)
+            if host is None:
+                keep.append((b, m, h, n))
+            else:
+                b2, m2, h2, n2 = keep[host]
+                keep[host] = ((min(b[0], b2[0]), min(b[1], b2[1]), max(b[2], b2[2]), max(b[3], b2[3])), m2 | m, h2, n2 + n)
+        found = [(b, m, h) for b, m, h, n in keep]
+        found.sort(key=lambda t: (t[0][0] // (cell * 6), t[0][1]))
         k = 0
-        for (y0, x0, y1, x1) in regions_from_mask(mask, cell, grow=3):
-            px = full[y0:y1, x0:x1][mask[y0:y1, x0:x1]]
-            if len(px) < 12:
-                continue  # sub-pixel speck
+        for (y0, x0, y1, x1), m, is_hl in found:
+            px = full[y0:y1, x0:x1][m[y0:y1, x0:x1]]
+            if len(px) < (400 if is_hl else 12):
+                continue  # speck, or a pen stroke's light rim
             k += 1
             med = tuple(int(v) for v in np.median(px, axis=0))
             rid = f"p{i:02d}-r{k}"
+            name = colour_name(med)
+            if is_hl and not name.endswith("-highlight"):
+                name = min((n for n in NAMED if n.endswith("-highlight")), key=lambda n: sum((x - y) ** 2 for x, y in zip(NAMED[n], med)))
             entry["regions"].append({"id": rid, "bbox": [round(x0 / W, 3), round(y0 / H, 3), round(x1 / W, 3), round(y1 / H, 3)],
-                                     "pixels": int(len(px)), "colour": colour_name(med), "hex": "#%02x%02x%02x" % med})
-            d.rectangle([x0 - 3, y0 - 3, x1 + 3, y1 + 3], outline=(20, 20, 20), width=2)
+                                     "pixels": int(len(px)), "kind": "highlighter" if is_hl else "pen",
+                                     "colour": name, "hex": "#%02x%02x%02x" % med})
+            d.rectangle([x0 - 3, y0 - 3, x1 + 3, y1 + 3], outline=(200, 120, 0) if is_hl else (20, 20, 20), width=2)
             lab = f"r{k}"
             tw = d.textlength(lab, font=font)
             ty = y0 - font.size - 6 if y0 > font.size + 8 else y1 + 4

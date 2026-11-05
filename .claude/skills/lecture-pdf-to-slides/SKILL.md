@@ -22,7 +22,7 @@ in the scratchpad or a `work/` folder next to the deck, not in the repository.
 - `scripts/separate_ink.py`: splits the instructor's ink from the print: printed-only pages, ink-only pages, and a numbered map of every ink region
 - `scripts/crop.py`: crops a page region (fractional coordinates); `--pair` also cuts the printed-only twin and reports whether the crop holds ink
 - `scripts/linalg_check.py`: exact-fraction RREF, rank, nullity, bases, consistency and dependency relations
-- `scripts/check_deck.js`: renders every slide with annotations on and off and flags layout, math, text-size, figure, density and ink-layer problems; checks coverage against the inventory and the ink map
+- `scripts/check_deck.js`: renders every slide with annotations on and off and flags layout, math, text-size, figure, density and ink-layer problems; checks coverage against the inventory and the ink map; writes page-by-page comparison sheets and every formula slide by slide for the fidelity pass
 - `references/deck-template.html`: the starting point, with theme, components, KaTeX macros, annotation layer and toggle
 - `references/annotation-guide.md`: how to read ink, how to classify each mark, and exactly how each kind appears in the deck
 - `references/review-brief.md`: the brief for the independent review in step 7
@@ -41,8 +41,8 @@ overlapping bands per page at 400 dpi), `text/page-NN.txt`, `manifest.json`,
 and, from `separate_ink.py`:
 - `printed/page-NN.png`: the page as printed, with the ink removed
 - `ink/page-NN.png`: the ink alone
-- `ink/page-NN-map.png`: the page with every ink region boxed and numbered (`r1`, `r2` …)
-- `ink/regions.json`: each region's id (`p05-r3`), box, colour name and hex
+- `ink/page-NN-map.png`: the page with every ink region boxed and numbered (`r1`, `r2` …). Each pen colour and each highlighter stroke is its own region (black boxes for pen, orange for highlighter), so a highlight under handwriting can never hide inside a pen region
+- `ink/regions.json`: each region's id (`p05-r3`), box, kind (pen or highlighter), colour name and hex
 
 Open two or three `printed/` pages next to the originals and confirm that only
 the ink vanished. If the script says a page has no separable ink layer
@@ -137,7 +137,10 @@ it, and the fidelity pass compares against it.
 
 **Second sweep, with the map.** Open each `ink/page-NN-map.png` and walk the
 numbered regions in order. Every region must belong to an item, or to a
-`stray` item with a reason. One region can hold several items (a note and its
+`stray` item with a reason. A highlighter region is always its own
+`highlight` item (the instructor highlighted the two columns of a matrix:
+that is one or two items, never part of the item for the handwriting
+beside it). One region can hold several items (a note and its
 arrow), and one item can span several regions (a long underline broken in
 two). Then check the typed side the same way: every box, every bold label and
 every line of print on `printed/page-NN.png` maps to an item. A block at the
@@ -263,6 +266,13 @@ every deck:
 4. **Your own words are not ink.** Captions, intuition lines and takeaways you
    add use the body or `--ink-soft` colour, never an ink colour, and custom
    figures use the `--fig-*` tokens, never an `--ann-*` colour.
+5. **Show the ink; don't describe it.** No captions such as "magenta: the
+   instructor's arrow" or "in the notes a blue arrow links …": draw the arrow
+   or colour the mark, and let the ink labels say what is handwritten. A
+   caption says what the figure means, not which pen drew what.
+6. **Ink notes need air.** Inside `ann-note` and `hw-block`, an underlined
+   word must not touch a radical, fraction or box on the next line; put a tall
+   formula on its own line.
 
 ### Math
 
@@ -272,8 +282,10 @@ inside a `<div class="eq">` and never inside `<p>`.
 - Write fractions as `\tfrac` inside matrices and as `\frac` in display math. A matrix whose entries are all fractions gets room (`\\[4pt]` between rows) or, when the notes do so, the scalar factored out.
 - Use `\begin{aligned}` for chains of `\iff` or `=` (for example the Theorem 3.6.2 proof and the Theorem 3.6.6 proof).
 - Labels under terms (`\underset{L(\mathbf{e}_1)}{…}`) widen the term; wrap the label in `\mathclap{…}` so the spacing of the formula stays even.
+- Never stretch a matrix to make room for labels under its columns (no `\hspace` padding, no label row inside the matrix). Keep the matrix a normal `bmatrix` and put the labels on their own line below it, in column order ("columns: \(L(\mathbf{e}_1),\ L(\mathbf{e}_2),\ L(\mathbf{e}_3)\)"), or tint each column and its label in the same colour.
+- Write every argument: `\cos\theta`, never a bare `\cos` in a matrix entry. Transcribe handwritten matrices symbol by symbol; a dropped θ is a wrong entry.
 - Never write math as Unicode or plain text (`x1`, `R^n`, `→`, `θ`, `²`, `45°`), not in prose, captions, tables or figure labels. The checker flags most of these.
-- Put trailing punctuation inside the math, as in `\(L.\)`, so a period never wraps onto a line by itself. Keep a parenthetical together with `<span class="nowrap">(…)</span>`.
+- Put trailing punctuation inside the math, as in `\(L.\)`, so a period never wraps onto a line by itself. Keep a parenthetical together with `<span class="nowrap">(…)</span>`, and never let a formula sit alone on the last line of a note: keep it with the words before it (`<span class="nowrap">line of equation \(y=-x\)</span>`) or start it on its own line deliberately.
 - Carry highlighted or circled entries into the matrix itself with the macros. A highlight around a whole matrix gets a thin space inside, `\hly{\,\begin{bmatrix}…\end{bmatrix}\,}`, so the brackets are not cramped.
 
 **Fragments.** Use `class="fragment"` for solution steps, proof steps and the
@@ -297,6 +309,9 @@ Use both sources of figures.
    that `--pair` reports as "ink: none" is printed-only: one figure with
    `data-ink="none"`, and its caption must not claim ink. Show every crop at a
    readable size, at least 240px tall on the canvas and never as a thumbnail.
+   If `crop.py` warns that content touches an edge, move that edge: a crop
+   must not cut a bracket or a circle, nor pick up a fragment of the next
+   line.
    Put it on the slide it belongs to; if there is no room, give it the very
    next slide ("(cont.): the instructor's sketch"), not a gallery at the end.
 2. **Custom-made.** Redraw every sketch as a clean, accurate inline SVG, and
@@ -359,7 +374,7 @@ reads badly in a lecture hall:
 ## Step 6: Render, inspect, fix, repeat
 
 ```bash
-node <skill>/scripts/check_deck.js DECK.html WORK/shots --inventory WORK/inventory.json --regions WORK/prep/ink/regions.json
+node <skill>/scripts/check_deck.js DECK.html WORK/shots --inventory WORK/inventory.json --regions WORK/prep/ink/regions.json --pages WORK/prep/pages
 ```
 
 Fix everything it reports, and rerun until it prints `RESULT: clean`. Use the
@@ -372,9 +387,14 @@ tell you that a figure is misleading, a slide is cramped, a highlight landed
 on the wrong word, a caption says something false, or two slides in a row
 look identical. You can see those things in the screenshots.
 
-Then do a **fidelity pass** against the source. Go through the PDF page by
-page. For each item, find its slide and compare wording, every number, every
-sign and every subscript against the page image. Also confirm that each ink
+Then do a **fidelity pass** against the source, with the sheets the checker
+wrote: `WORK/shots/compare-pNN.png` puts each PDF page next to every slide
+that cites it, and `WORK/shots/tex-by-slide.txt` lists every formula slide by
+slide. Go page by page. On each sheet, point at every mark on the page (each
+highlight, underline, circle, arrow, handwritten symbol) and find it on a
+slide. Then compare wording, every number, every sign, every subscript and
+every function argument against the page image, reading the formulas from
+`tex-by-slide.txt`. Also confirm that each ink
 mark landed on the right words in the right colour, and that every caption
 is true of the figure it sits under. A wrong sign in a matrix is the error
 students notice first.
@@ -392,7 +412,10 @@ tool), start a new one with no access to your inventory, outline or notes,
 give it the brief in `references/review-brief.md` with the PDF and deck
 paths filled in, and wait for its findings. If you cannot start one, follow
 the brief yourself, cold: build its list from the page images before you look
-at your inventory again.
+at your inventory again, then work through every `compare-pNN.png` sheet
+mark by mark, as a stranger to the deck would. A cold self-review that only
+skims is the most common reason a finished deck still drops a highlight or
+a symbol.
 
 Fix every finding that holds up against the PDF, rerun `check_deck.js` until
 it is clean, and send the deck to a new reviewer (not the same one) for one
@@ -420,5 +443,5 @@ Reply with a short report:
 - [ ] All math is in KaTeX, in the notes' notation, full size, with no Unicode stand-ins
 - [ ] Everything handwritten is in the ink layer, in the instructor's colours, on the slide it comments on, and `A` leaves exactly the printed notes
 - [ ] `check_deck.js` prints `RESULT: clean`, and both sets of contact sheets have been reviewed by eye
-- [ ] The fidelity pass is done, page by page
+- [ ] The fidelity pass is done page by page on the `compare-pNN.png` sheets: every mark on every page found on a slide, every formula in `tex-by-slide.txt` checked against the page
 - [ ] An independent review round found nothing significant (or the report names what is open)

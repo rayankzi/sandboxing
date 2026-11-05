@@ -27,8 +27,11 @@ deck that drops it is missing part of the lecture.
   answers "printed or handwritten?" for every mark, including ink drawn on top
   of a printed figure and blanks filled in by hand. The map is your checklist:
   each numbered region ends up in an inventory item's `"regions"` list, or in
-  a stray item. `ink/regions.json` also gives each region's colour as a hex
-  value; use those for the deck's `--ann-*` tokens.
+  a stray item. Pen and highlighter are mapped separately (black and orange
+  boxes), and each pen colour separately, so a highlight or a note in a
+  second colour is always a region of its own. `ink/regions.json` also gives
+  each region's colour as a hex value; use those for the deck's `--ann-*`
+  tokens.
 
 ## Classify every mark
 
@@ -87,6 +90,11 @@ These snippets cover most slides:
   put the box on its own line with a little space above it.
 - When a slide is split, every note, arrow label and check moves with the line
   it belongs to.
+- Labels the instructor wrote under matrix columns ("L(e₁) L(e₂) L(e₃)" with
+  arrows) go on their own line under a normal `bmatrix`, in column order and
+  in the ink colour. Do not pad the matrix to fit them.
+- Do not write captions that describe the ink ("magenta: the instructor's
+  marks"). Draw the mark in its colour; the `ink-label` does the explaining.
 
 ## Emphasis inside math
 
