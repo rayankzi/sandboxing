@@ -12,6 +12,10 @@ Creates, inside OUT_DIR:
                            repeated pen/highlighter texture stamps go to
                            images/_stamps and can be ignored
   manifest.json            page count and file lists
+  printed/, ink/           from separate_ink.py (run automatically): the
+                           printed-only page renders, the ink alone, a
+                           numbered map of every ink region per page
+                           (ink/page-NN-map.png) and ink/regions.json
 
 Usage:
   python3 prepare_pdf.py NOTES.pdf OUT_DIR [--dpi 200] [--bands 4]
@@ -115,6 +119,13 @@ def main():
     low = [f["page"] for f in manifest["files"] if f["text_chars"] < 40]
     if low:
         print(f"  pages with little or no extractable text (scanned or handwritten?): {low}")
+
+    # Separate the ink from the print (printed/, ink/, ink/regions.json).
+    sep = Path(__file__).resolve().parent / "separate_ink.py"
+    r = subprocess.run([sys.executable, str(sep), str(pdf), str(out), "--dpi", str(a.dpi)], capture_output=True, text=True)
+    print(r.stdout.rstrip())
+    if r.returncode != 0:
+        print("separate_ink.py failed; read the ink by eye:\n" + r.stderr[-800:], file=sys.stderr)
 
 
 if __name__ == "__main__":

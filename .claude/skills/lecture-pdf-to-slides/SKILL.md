@@ -18,15 +18,17 @@ working directory. Keep working files (page renders, inventory, screenshots)
 in the scratchpad or a `work/` folder next to the deck, not in the repository.
 
 **Skill files**
-- `scripts/prepare_pdf.py`: renders pages, 2x zoom bands, text layer, embedded images
-- `scripts/crop.py`: crops a page region (fractional coordinates), optional zoom, trim and data URI
+- `scripts/prepare_pdf.py`: renders pages, 2x zoom bands, text layer, embedded images, and runs `separate_ink.py`
+- `scripts/separate_ink.py`: splits the instructor's ink from the print: printed-only pages, ink-only pages, and a numbered map of every ink region
+- `scripts/crop.py`: crops a page region (fractional coordinates); `--pair` also cuts the printed-only twin and reports whether the crop holds ink
 - `scripts/linalg_check.py`: exact-fraction RREF, rank, nullity, bases, consistency and dependency relations
-- `scripts/check_deck.js`: renders every slide, flags overflow, KaTeX errors, untypeset math, broken images and tiny text, writes contact sheets, and checks coverage against the inventory
-- `references/deck-template.html`: the starting point, with theme, components, annotation layer and toggle
-- `references/annotation-guide.md`: how to read ink, how to classify each mark, and how each kind appears in the deck, with a worked reference from Section 3.6
+- `scripts/check_deck.js`: renders every slide with annotations on and off and flags layout, math, text-size, figure, density and ink-layer problems; checks coverage against the inventory and the ink map; writes page-by-page comparison sheets and every formula slide by slide for the fidelity pass
+- `references/deck-template.html`: the starting point, with theme, components, KaTeX macros, annotation layer and toggle
+- `references/annotation-guide.md`: how to read ink, how to classify each mark, and exactly how each kind appears in the deck
+- `references/review-brief.md`: the brief for the independent review in step 7
 
 Before the first tool call, tell the user in one line what you are about to do.
-At the end, give the short report described in step 7.
+At the end, give the short report described in step 8.
 
 ## Step 1: Prepare the PDF
 
@@ -35,22 +37,38 @@ python3 <skill>/scripts/prepare_pdf.py NOTES.pdf WORK/prep
 ```
 
 This writes `pages/page-NN.png` (200 dpi), `zoom/page-NN-rK.png` (four
-overlapping bands per page at 400 dpi), `text/page-NN.txt` and `manifest.json`.
+overlapping bands per page at 400 dpi), `text/page-NN.txt`, `manifest.json`,
+and, from `separate_ink.py`:
+- `printed/page-NN.png`: the page as printed, with the ink removed
+- `ink/page-NN.png`: the ink alone
+- `ink/page-NN-map.png`: the page with every ink region boxed and numbered (`r1`, `r2` …). Each pen colour and each highlighter stroke is its own region (black boxes for pen, orange for highlighter), so a highlight under handwriting can never hide inside a pen region
+- `ink/regions.json`: each region's id (`p05-r3`), box, kind (pen or highlighter), colour name and hex
+
+Open two or three `printed/` pages next to the originals and confirm that only
+the ink vanished. If the script says a page has no separable ink layer
+(scanned notes, unusual layout), read that page's ink by eye. The rest of the
+workflow still applies; only the map is missing there.
+
 The text layer is good for copying typed wording exactly. It does not contain
 handwriting and may contain garbled fragments of it, so never take ink content
 from it.
 
 ## Step 2: Read everything, then build the inventory
 
-Read every page before you plan a single slide. Look at the full page first,
-then at every zoom band. Lecture notes are cumulative: a remark on page 7
+Read every page before you plan a single slide: the full page, every zoom
+band, and the ink map. Lecture notes are cumulative: a remark on page 7
 changes how the definition on page 1 should be presented, and handwriting that
 is unreadable at page scale is usually clear in a band. Read
 `references/annotation-guide.md` now, before you classify any ink.
 
+The printed-only page settles what was printed and what the instructor
+wrote. A blank the template leaves ("dimension ____") is print; what fills it
+is ink. Never decide this from memory of the page.
+
 Record every item in `WORK/inventory.json`. This file is the contract for
-completeness. `check_deck.js` fails the deck if any non-ignored item is
-missing from it.
+completeness: `check_deck.js` fails the deck if any non-ignored item is
+missing from it, if an annotation item is not rendered in the ink layer, or if
+any ink region is unclaimed.
 
 ```json
 {
@@ -71,6 +89,7 @@ missing from it.
       "kind": "highlight",
       "source": "annotation",
       "ink": "yellow",
+      "regions": ["p01-r2"],
       "target": "p01-def-row-col-space",
       "content": "'Row Space' highlighted"
     },
@@ -80,6 +99,7 @@ missing from it.
       "kind": "check",
       "source": "annotation",
       "ink": "magenta",
+      "regions": ["p10-r5", "p10-r6"],
       "content": "Expanded check of a4 = -9/8 a1 - 1/2 a2",
       "correction": "Handwriting uses (-9,4,-3,4)^T (that is a5) as the left side; the correct a4 is (6,-3,-2,2)^T."
     },
@@ -88,6 +108,7 @@ missing from it.
       "page": 1,
       "kind": "stray",
       "source": "annotation",
+      "regions": ["p01-r7"],
       "disposition": "ignored",
       "reason": "two tiny red ticks with no attached meaning"
     }
@@ -104,16 +125,27 @@ an item. That always includes:
 - every Example, with each part (a), (b), 1., 2., 3. as its own item
 - every Solution, typed or handwritten, with each part as its own item
 - every table, every summary box and every case (Case I, Case II …)
-- every annotation mark, classified with the kinds in the annotation guide
+- every annotation mark, classified with the kinds in the annotation guide:
+  each highlight, each underline (also those under a formula), each circle
+  and box, each arrow and its label, each margin note, each filled-in blank,
+  each handwritten step, check and sketch
 
-IDs are `pNN-<kind>-<slug>`, unique, stable, and lower-case. Keep `content`
-close to the source wording. You will typeset from it, and the final
-fidelity pass compares against it.
+IDs are `pNN-<kind>-<slug>`, unique, stable, and lower-case. Every ink item has
+`"source": "annotation"` and lists the ink-map regions it covers in
+`"regions"`. Keep `content` close to the source wording. You will typeset from
+it, and the fidelity pass compares against it.
 
-When the inventory is done, go through the pages one more time and check that
-every box, every bold label and every patch of ink on each page maps to an
-item. Notes PDFs often have a block at the very bottom of a page or a
-one-line remark between two boxes. These are the items that get lost.
+**Second sweep, with the map.** Open each `ink/page-NN-map.png` and walk the
+numbered regions in order. Every region must belong to an item, or to a
+`stray` item with a reason. A highlighter region is always its own
+`highlight` item (the instructor highlighted the two columns of a matrix:
+that is one or two items, never part of the item for the handwriting
+beside it). One region can hold several items (a note and its
+arrow), and one item can span several regions (a long underline broken in
+two). Then check the typed side the same way: every box, every bold label and
+every line of print on `printed/page-NN.png` maps to an item. A block at the
+very bottom of a page, a one-line remark between two boxes, and a short
+underline under a formula are the items that get lost.
 
 ## Step 3: Verify the mathematics
 
@@ -127,10 +159,17 @@ python3 <skill>/scripts/linalg_check.py "[[1,2],[2,4]]" --b "[4,8]" --combo "[[0
 ```
 
 For other subjects, write a short script with `fractions.Fraction` or exact
-integer arithmetic. Record any slip in the item's `correction` field.
+integer arithmetic. Also compare every typed matrix with every other place the
+same object appears (a rotation matrix printed on p. 8 and again on p. 13
+should agree). Record any slip in the item's `correction` field.
 `references/annotation-guide.md` explains how to present corrections. The
-short version: typeset the correct mathematics and add an `ann-fix` line, so
-students comparing the deck with their notes can see why the two differ.
+short version: typeset the correct mathematics and add a visible `ann-fix`
+line, so students comparing the deck with their notes can see why the two
+differ.
+
+A pen mark is not a symbol until the handwriting shows one. A tick after
+"A =" is a stray, not "=:". When a mark could be either, zoom in, compare
+with the printed-only page, and decide from the mathematics.
 
 ## Step 4: Plan the deck
 
@@ -165,42 +204,89 @@ a summary slide that collects the definitions and theorems in compact form,
 plus the notes' own summary material if the notes have it.
 
 **Slide budget.** One idea per slide. Prose stays under about 45 words, next
-to at most one large display block or one figure. If a slide needs more, split
-it. A dense slide is the most common way these decks fail on a projector.
+to at most one large display block or one figure. A slide with a statement,
+a correction and a computation is three slides. If a slide needs more, split
+it. A dense slide is the most common way these decks fail on a projector, and
+`check_deck.js` flags the worst cases.
 
 **Annotations on the plan.** For each slide, note which ink items it carries
-and how: inline emphasis, `ann-note`, typeset worked solution, check, or
-sketch. Put a margin note on the slide whose content it comments on, never on
-a separate "annotations" slide at the end.
+and how (see the annotation guide): emphasis, `ann-note`, filled-in blank,
+`hw-block` solution or check, crop, or SVG redraw. Every ink item sits on the
+slide whose content it comments on. When you split a slide, the notes, arrow
+labels and checks move with the line they belong to. Never collect
+annotations on an "annotations" slide at the end.
 
 ## Step 5: Build the HTML
 
 Copy `references/deck-template.html` and replace all the sample slides. Keep
-the CSS tokens, the components, the KaTeX setup and the annotation toggle.
+the CSS tokens, the components, the KaTeX setup and macros, and the
+annotation toggle. Set the `--ann-*` ink tokens to the hex values that
+`ink/regions.json` reports for each pen, so the deck's ink matches the notes.
 
 **Components** (all defined in the template):
 - `section.title-slide`, `section.divider`
-- `.stack` > `h2.slide-title` + `.body` (the body centres sparse content vertically)
+- `.stack` > `h2.slide-title` + `.body` (the body centres sparse content vertically; `.body.top` aligns it to the top)
 - `.box.definition`, `.box.theorem`, `.box.property`, `.box.note`, `.box.remark`, `.box.key`, each with a `<span class="label">`. Use the notes' own label text, e.g. "Theorem 3.6.2: Consistency Theorem for Linear Systems".
 - `.proof` with `<span class="label">Proof.</span>` and a `.qed` mark
-- `.example-label` / `.solution-label`, `.parts` lists for (a)/(b)
-- `.split` (text | figure), `figure`, `figure.from-pdf` with `data-page`
+- `.example-label` / `.solution-label`, `.parts` lists for (a)/(b), `.blank` for a printed blank
+- `.split` (text | figure), `figure`, `.plot` (SVG + KaTeX labels), `figure.from-pdf` with `data-page`, `.printed-only`
 - `table.grid`
-- annotation classes: `hl-*`, `ul-*`, `circ-*`, `box-red`, `.ann-note.ann` (+ `red`/`magenta`/`green`), `.ann-fix.ann`
+- the ink layer: `hl-*`, `ul-*`, `ul2-*`, `circ-*`, `box-*`, `.hw` + `.ink-*`, `.hw-block`, `.ann-note`, `.ann-fix`, and the math macros `\hly{}`, `\ulm{}`, `\bxr{}`, `\cim{}`, `\inkm{}` …
 - `.src`: "notes p. N" on every content slide, so students can find the source page
+- `.cap`: a caption line of your own; `.nowrap` to keep a short phrase on one line
 
 **Coverage markers.** Put `data-inv="id1 id2"` on the element that renders
 each inventory item: the box, the paragraph, the figure or the span. Every
 non-ignored id must appear at least once. Do not use `data-src`; reveal.js
 reserves it for lazy loading.
 
-**Math.** Typeset all mathematics with KaTeX: `\( … \)` inline, `\[ … \]`
-display, inside a `<div class="eq">` and never inside `<p>`.
-- Match the notation of the notes exactly: bold vectors `\mathbf{a}_1`, `N(A)`, `\mathbb{R}^m`, bracket matrices `bmatrix`, column vectors as `bmatrix` columns. Write fractions as `\tfrac` inside matrices and as `\frac` in display math.
+### The ink layer
+
+Students must be able to tell, on every slide, what was printed and what the
+instructor wrote. The annotation guide has the details. These rules hold for
+every deck:
+
+1. **Everything the instructor wrote is in the ink layer, in the pen's
+   colour.** That includes worked solutions, filled-in blanks, column
+   computations, final answers, checks, margin notes and sketches. Handwritten
+   text and math use `.hw ink-magenta` (inline) or `.hw-block ink-magenta`
+   (a passage with an `ink-label` such as "Instructor's solution"). Inside a
+   formula use `\inkm{…}`. A handwritten solution is still taught step by step
+   with fragments; being ink does not make it secondary.
+2. **Emphasis lands on the same words, also under math.** Use `ul-*`/`hl-*`
+   spans around text and math alike (they draw under KaTeX), or the macros
+   inside a formula (`\ulm{L(\mathbf{x})}`, `\hly{…}`, `\bxr{…}`).
+3. **`A` hides the whole layer.** With annotations off the deck shows exactly
+   the printed notes: blanks stay blank, ink crops swap to their printed-only
+   twins, SVG ink strokes (wrapped in `<g class="ann">`) disappear, and so do
+   captions that talk about the ink. Give those captions class `ann`. A slide
+   that is entirely handwritten shows a short `.printed-only` line such as
+   "The notes leave this space for the solution worked in class (press A)"
+   with `data-noann-ok`.
+4. **Your own words are not ink.** Captions, intuition lines and takeaways you
+   add use the body or `--ink-soft` colour, never an ink colour, and custom
+   figures use the `--fig-*` tokens, never an `--ann-*` colour.
+5. **Show the ink; don't describe it.** No captions such as "magenta: the
+   instructor's arrow" or "in the notes a blue arrow links …": draw the arrow
+   or colour the mark, and let the ink labels say what is handwritten. A
+   caption says what the figure means, not which pen drew what.
+6. **Ink notes need air.** Inside `ann-note` and `hw-block`, an underlined
+   word must not touch a radical, fraction or box on the next line; put a tall
+   formula on its own line.
+
+### Math
+
+Typeset all mathematics with KaTeX: `\( … \)` inline, `\[ … \]` display,
+inside a `<div class="eq">` and never inside `<p>`.
+- Match the notation of the notes exactly: bold vectors `\mathbf{a}_1`, `N(A)`, `\mathbb{R}^m`, bracket matrices `bmatrix`, column vectors as full-size `bmatrix` columns. Never `smallmatrix` or `\scriptsize` to save space: split the line or the slide instead.
+- Write fractions as `\tfrac` inside matrices and as `\frac` in display math. A matrix whose entries are all fractions gets room (`\\[4pt]` between rows) or, when the notes do so, the scalar factored out.
 - Use `\begin{aligned}` for chains of `\iff` or `=` (for example the Theorem 3.6.2 proof and the Theorem 3.6.6 proof).
-- Never write math as Unicode or plain text (`x1`, `R^n`, `→`). The checker flags raw TeX left in the text, but not Unicode math, so this one is on you.
-- Put trailing punctuation inside the math, as in `\(L.\)`, so a period never wraps onto a line by itself.
-- Carry highlighted or circled entries into the matrix itself with `\colorbox` / `\fcolorbox`. The annotation guide shows how.
+- Labels under terms (`\underset{L(\mathbf{e}_1)}{…}`) widen the term; wrap the label in `\mathclap{…}` so the spacing of the formula stays even.
+- Never stretch a matrix to make room for labels under its columns (no `\hspace` padding, no label row inside the matrix). Keep the matrix a normal `bmatrix` and put the labels on their own line below it, in column order ("columns: \(L(\mathbf{e}_1),\ L(\mathbf{e}_2),\ L(\mathbf{e}_3)\)"), or tint each column and its label in the same colour.
+- Write every argument: `\cos\theta`, never a bare `\cos` in a matrix entry. Transcribe handwritten matrices symbol by symbol; a dropped θ is a wrong entry.
+- Never write math as Unicode or plain text (`x1`, `R^n`, `→`, `θ`, `²`, `45°`), not in prose, captions, tables or figure labels. The checker flags most of these.
+- Put trailing punctuation inside the math, as in `\(L.\)`, so a period never wraps onto a line by itself. Keep a parenthetical together with `<span class="nowrap">(…)</span>`, and never let a formula sit alone on the last line of a note: keep it with the words before it (`<span class="nowrap">line of equation \(y=-x\)</span>`) or start it on its own line deliberately.
+- Carry highlighted or circled entries into the matrix itself with the macros. A highlight around a whole matrix gets a thin space inside, `\hly{\,\begin{bmatrix}…\end{bmatrix}\,}`, so the brackets are not cramped.
 
 **Fragments.** Use `class="fragment"` for solution steps, proof steps and the
 reveal of an answer. Leave definitions and theorem statements fully visible.
@@ -215,10 +301,19 @@ Notes do not count for coverage.
 
 Use both sources of figures.
 
-1. **From the PDF.** For every instructor `sketch`, crop it with
-   `scripts/crop.py … --trim --datauri` and embed it in `figure.from-pdf`
-   with `data-page` and alt text. Use the same method for any printed figure
-   in the notes.
+1. **From the PDF.** For every instructor `sketch`, and every printed figure
+   the instructor drew on, crop it with
+   `scripts/crop.py pages/page-NN.png x0 y0 x1 y1 out.png --trim --pair --datauri`.
+   Embed the annotated crop as `figure.from-pdf.ann` and its printed-only twin
+   as `figure.from-pdf.printed-only` (same `data-page`, same framing). A crop
+   that `--pair` reports as "ink: none" is printed-only: one figure with
+   `data-ink="none"`, and its caption must not claim ink. Show every crop at a
+   readable size, at least 240px tall on the canvas and never as a thumbnail.
+   If `crop.py` warns that content touches an edge, move that edge: a crop
+   must not cut a bracket or a circle, nor pick up a fragment of the next
+   line.
+   Put it on the slide it belongs to; if there is no room, give it the very
+   next slide ("(cont.): the instructor's sketch"), not a gallery at the end.
 2. **Custom-made.** Redraw every sketch as a clean, accurate inline SVG, and
    add new figures where a picture explains the idea better than text. In
    linear algebra that typically means:
@@ -230,11 +325,16 @@ Use both sources of figures.
    - rank + nullity = n as one bar of n columns, split into pivot and free columns
    - matrix-shape glyphs (tall and thin, short and wide, square) for the four-cases table
 
-Every SVG must be mathematically accurate (a point labelled (1, 2) sits at
-(1, 2) on the drawn axes) and labelled with KaTeX-style italics for variables.
-It should use the deck's colour tokens, with ink colours for things the
-instructor drew, and carry `role="img"` and an `aria-label`. Compute
-coordinates rather than eyeballing them.
+**Figure rules.** Every SVG must be mathematically accurate (a point labelled
+(1, 2) sits at (1, 2) on the drawn axes). Compute coordinates in a script
+rather than eyeballing them. Put math labels in a `.plot` as KaTeX `.pl`
+spans positioned from the same data coordinates, at 24px; plain tick numbers
+may be SVG text at 20px or more. Leave clear space around every label: no
+label touches another label, an axis or an arrow, and tick labels at a shared
+corner (the two "−1"s) are offset or one is dropped. Keep every stroke inside
+the plot box so nothing runs into the caption. The instructor's strokes are in
+the ink colours inside `<g class="ann">`, and everything else uses the
+`--fig-*` tokens. Each SVG carries `role="img"` and an `aria-label`.
 
 A small interactive figure is welcome when it teaches something a static one
 cannot, for example a slider for α and β that moves α**a**₁ + β**a**₂ around
@@ -250,10 +350,16 @@ uses a different colour code, in which case match the PDF:
   Theorem/Property, yellow Note/Remark, peach "It follows" callout, blue
   EXAMPLE/Solution labels
 - Source Sans 3 for headings and labels, Source Serif 4 for body text (it sits
-  well next to KaTeX's Computer Modern), Caveat only for the small "Instructor
-  note" label
+  well next to KaTeX's Computer Modern), Caveat only for the small ink labels
+  ("Instructor note", "Instructor's solution")
 - 1280×720 canvas, generous margins, left-aligned text, one strong focal
   element per slide
+- **every piece of text a viewer reads is at least 22px**: body, captions,
+  `ann-fix` lines, table cells and KaTeX figure labels. Only the source tag
+  and the slide number are smaller (20px). Do not shrink text to fit; split.
+- the chrome stays out of the way: navigation arrows at the side edges, the
+  slide number in the bottom-right corner, the source tag to its left, the
+  toggle bottom-left. Do not move them or put content in those corners.
 
 Avoid these patterns. Each one is a default that makes a deck look generic or
 reads badly in a lecture hall:
@@ -264,50 +370,78 @@ reads badly in a lecture hall:
 - emoji or icon-font bullets
 - centred paragraphs of body text
 - fly-in, zoom, spin or "convex" transitions
-- body text under 22px on the canvas (captions, `ann-fix` lines and source labels may go down to 16px, nothing smaller)
 
 ## Step 6: Render, inspect, fix, repeat
 
 ```bash
-node <skill>/scripts/check_deck.js DECK.html WORK/shots --inventory WORK/inventory.json
+node <skill>/scripts/check_deck.js DECK.html WORK/shots --inventory WORK/inventory.json --regions WORK/prep/ink/regions.json --pages WORK/prep/pages
 ```
 
-Fix everything it reports. Then look at every contact sheet
-(`WORK/shots/contact-N.png`), and open any slide that looks off at full size
-(`slide-NNN.png`). The script catches overflow and broken math. It cannot
-tell you that a figure is misleading, a slide is cramped, a highlight landed on
-the wrong word, or two slides in a row look identical. You can see those
-things in the screenshots. Rerun after each round of fixes until the result
-is `RESULT: clean` and every slide looks right.
+Fix everything it reports, and rerun until it prints `RESULT: clean`. Use the
+`data-*-ok` escape hatches only for a genuinely intentional case, with an HTML
+comment saying why. Then look at every contact sheet, both
+`WORK/shots/contact-N.png` (annotations on) and `noann-contact-N.png`
+(annotations off), and open any slide that looks off at full size. The script
+catches overflow, broken math, small text, collisions and ink leaks. It cannot
+tell you that a figure is misleading, a slide is cramped, a highlight landed
+on the wrong word, a caption says something false, or two slides in a row
+look identical. You can see those things in the screenshots.
 
-Then do a **fidelity pass** against the source. Go through the PDF page by
-page. For each item, find its slide and compare wording, every number, every
-sign and every subscript against the page image. Also confirm that each ink
-mark landed on the right words in the right colour. A wrong sign in a matrix
-is the error students notice first.
+Then do a **fidelity pass** against the source, with the sheets the checker
+wrote: `WORK/shots/compare-pNN.png` puts each PDF page next to every slide
+that cites it, and `WORK/shots/tex-by-slide.txt` lists every formula slide by
+slide. Go page by page. On each sheet, point at every mark on the page (each
+highlight, underline, circle, arrow, handwritten symbol) and find it on a
+slide. Then compare wording, every number, every sign, every subscript and
+every function argument against the page image, reading the formulas from
+`tex-by-slide.txt`. Also confirm that each ink
+mark landed on the right words in the right colour, and that every caption
+is true of the figure it sits under. A wrong sign in a matrix is the error
+students notice first.
 
 Keep a checklist of the open steps (for example in `WORK/progress.md`). Do not
 stop while the checklist has open items. If something genuinely blocks you,
 such as an unreadable page, a missing font or no network for the CDNs, say
 exactly what is blocked and finish everything else.
 
-## Step 7: Report
+## Step 7: Independent review
+
+You have looked at this deck for hours, and you will not see what you got
+used to. Get a fresh reader. If you can start a subagent (an Agent or Task
+tool), start a new one with no access to your inventory, outline or notes,
+give it the brief in `references/review-brief.md` with the PDF and deck
+paths filled in, and wait for its findings. If you cannot start one, follow
+the brief yourself, cold: build its list from the page images before you look
+at your inventory again, then work through every `compare-pNN.png` sheet
+mark by mark, as a stranger to the deck would. A cold self-review that only
+skims is the most common reason a finished deck still drops a highlight or
+a symbol.
+
+Fix every finding that holds up against the PDF, rerun `check_deck.js` until
+it is clean, and send the deck to a new reviewer (not the same one) for one
+more round. Stop when a round finds no missing item, no mathematical error, no
+ink that reads as print, and nothing a student would stumble on, or after
+three rounds; then name in the report anything left open.
+
+## Step 8: Report
 
 Reply with a short report:
 - the deck path and slide count
-- coverage, as `N/N inventory items placed`, plus the ignored marks and why
+- coverage, as `N/N inventory items placed` and `N/N ink regions claimed`, plus the ignored marks and why
 - every correction you made to typed or handwritten math (page, what it said, what is correct)
 - any low-confidence readings of handwriting
+- what the independent review found and what you changed
 - how to use the deck: arrow keys or space to navigate, `A` to toggle annotations, `S` for speaker notes, `?print-pdf` in the URL to export a PDF
 
 ## Definition of done
 
-- [ ] Every page read at full size and in every zoom band
-- [ ] `inventory.json` covers every typed block and every ink mark, and strays are ignored with reasons
-- [ ] All math recomputed, and slips corrected with `ann-fix` notes
+- [ ] Every page read at full size, in every zoom band, and on its ink map
+- [ ] `inventory.json` covers every typed block and every ink mark; every ink region is claimed; strays are ignored with reasons
+- [ ] All math recomputed, and slips corrected with visible `ann-fix` notes
 - [ ] Order follows the notes. Each concept goes definition → visual (when useful) → proof → examples → takeaway
-- [ ] Each instructor sketch is both cropped from the PDF and redrawn as SVG, and custom figures sit where they help
-- [ ] All math is in KaTeX, in the notes' notation, with no Unicode stand-ins
-- [ ] The annotation layer is complete, in the instructor's colours, and toggles with `A`
-- [ ] `check_deck.js` prints `RESULT: clean`, and every contact sheet has been reviewed by eye
-- [ ] The fidelity pass is done, page by page
+- [ ] Each instructor sketch is both cropped from the PDF (annotated + printed-only twin, readable size) and redrawn as SVG, and custom figures sit where they help
+- [ ] All math is in KaTeX, in the notes' notation, full size, with no Unicode stand-ins
+- [ ] Everything handwritten is in the ink layer, in the instructor's colours, on the slide it comments on, and `A` leaves exactly the printed notes
+- [ ] `check_deck.js` prints `RESULT: clean`, and both sets of contact sheets have been reviewed by eye
+- [ ] The fidelity pass is done page by page on the `compare-pNN.png` sheets: every mark on every page found on a slide, every formula in `tex-by-slide.txt` checked against the page
+- [ ] An independent review round found nothing significant (or the report names what is open)
